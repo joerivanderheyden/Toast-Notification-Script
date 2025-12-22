@@ -60,9 +60,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory=$false)]
+    [string]$Config = "https://dejoeriencopublicfiles.blob.core.windows.net/toastnotification/config-toast-pendingreboot.xml"
     #[string]$Config = "https://toast.imab.dk/config-toast-pendingreboot.xml"
     #[string]$Config = "https://toast.imab.dk/config-toast-weeklymessage.xml"
-    [string]$Config = "https://toast.imab.dk/config-toast-iosupdate.xml"
+    #[string]$Config = "https://toast.imab.dk/config-toast-iosupdate.xml"
 )
 function Write-Log() {
     [CmdletBinding()]
