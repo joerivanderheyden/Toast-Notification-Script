@@ -869,6 +869,42 @@ function Register-CustomNotificationApp($fAppID,$fAppDisplayName) {
     }
 }
 
+# Create Register-RestartProtocol function
+function Register-RestartProtocol() {
+    Write-Log -Message "Executing Register-RestartProtocol function"
+    
+    $ActionProtocol = "ToastRestart"
+    $RestartScript = "shutdown.exe /r /f /t 0"
+    $RestartPath = "$env:TEMP\ToastRestart.cmd"
+    $RegPath = "HKCU:\SOFTWARE\Classes\$ActionProtocol\shell\open\command"
+    
+    try {
+        # Create restart command script
+        $RestartScript | Out-File $RestartPath -Encoding ASCII -Force
+        Write-Log -Message "Created restart script at: $RestartPath"
+        
+        # Register protocol handler
+        if (-NOT(Test-Path "HKCU:\SOFTWARE\Classes\$ActionProtocol")) {
+            New-Item -Path "HKCU:\SOFTWARE\Classes\$ActionProtocol" -Force | Out-Null
+        }
+        New-ItemProperty -Path "HKCU:\SOFTWARE\Classes\$ActionProtocol" -Name "URL Protocol" -Value "" -PropertyType String -Force | Out-Null
+        
+        # Set command path
+        if (-NOT(Test-Path $RegPath)) {
+            New-Item -Path $RegPath -Force | Out-Null
+        }
+        Set-ItemProperty -Path $RegPath -Name "(Default)" -Value $RestartPath -Force
+        
+        Write-Log -Message "Successfully registered restart protocol handler: ${ActionProtocol}:"
+        return "${ActionProtocol}:"
+    }
+    catch {
+        Write-Log -Message "Failed to register restart protocol handler" -Level Error
+        Write-Log -Message "Error details: $_" -Level Error
+        return $null
+    }
+}
+
 # Create function to retrieve the last run time of the notification
 function Get-NotificationLastRunTime() {
     $LastRunTime = (Get-ItemProperty $global:RegistryPath -Name LastRunTime -ErrorAction Ignore).LastRunTime
@@ -1068,6 +1104,17 @@ if ($CustomAppEnabled -eq "True") {
     # Hardcoding the AppID. Only the display name is interesting, thus this comes from the config.xml
     Register-CustomNotificationApp -fAppID "Toast.Custom.App" -fAppDisplayName $CustomAppValue
 }
+
+# Register restart protocol handler if Action1 is configured for restart
+if (-NOT[string]::IsNullOrEmpty($Action1)) {
+    $RestartProtocol = Register-RestartProtocol
+    if ($RestartProtocol) {
+        # Override Action1 with the registered protocol
+        $Action1 = $RestartProtocol
+        Write-Log -Message "Action1 configured to use restart protocol: $Action1"
+    }
+}
+
 # Downloading images into user's temp folder if images are hosted online
 if ($LogoImageFileName -match "^https?://") {
     $DownloadedLogoPath = Get-ToastImage -ImageUrl $LogoImageFileName -LocalPath $LogoImageTemp -ImageType "LogoImage"
