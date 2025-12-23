@@ -874,28 +874,26 @@ function Register-RestartProtocol() {
     Write-Log -Message "Executing Register-RestartProtocol function"
     
     $ActionProtocol = "ToastRestart"
-    $RestartScript = "shutdown.exe /r /f /t 0"
-    $RestartPath = "$env:TEMP\ToastRestart.cmd"
     $RegPath = "HKCU:\SOFTWARE\Classes\$ActionProtocol\shell\open\command"
     
     try {
-        # Create restart command script
-        $RestartScript | Out-File $RestartPath -Encoding ASCII -Force
-        Write-Log -Message "Created restart script at: $RestartPath"
-        
         # Register protocol handler
         if (-NOT(Test-Path "HKCU:\SOFTWARE\Classes\$ActionProtocol")) {
             New-Item -Path "HKCU:\SOFTWARE\Classes\$ActionProtocol" -Force | Out-Null
         }
-        New-ItemProperty -Path "HKCU:\SOFTWARE\Classes\$ActionProtocol" -Name "URL Protocol" -Value "" -PropertyType String -Force | Out-Null
+        New-ItemProperty -Path "HKCU:\SOFTWARE\Classes\$ActionProtocol" -Name "URL Protocol" -Value "" -PropertyType String -Force -ErrorAction SilentlyContinue | Out-Null
         
-        # Set command path
+        # Set command path - direct PowerShell command
         if (-NOT(Test-Path $RegPath)) {
             New-Item -Path $RegPath -Force | Out-Null
         }
-        Set-ItemProperty -Path $RegPath -Name "(Default)" -Value $RestartPath -Force
+        
+        # Use PowerShell to execute shutdown directly
+        $CommandValue = "powershell.exe -NoProfile -WindowStyle Hidden -Command `"& {shutdown.exe /r /f /t 0}`""
+        Set-ItemProperty -Path $RegPath -Name "(Default)" -Value $CommandValue -Force
         
         Write-Log -Message "Successfully registered restart protocol handler: ${ActionProtocol}:"
+        Write-Log -Message "Command: $CommandValue"
         return "${ActionProtocol}:"
     }
     catch {
@@ -1106,7 +1104,9 @@ if ($CustomAppEnabled -eq "True") {
 }
 
 # Register restart protocol handler if Action1 is configured for restart
-if (-NOT[string]::IsNullOrEmpty($Action1)) {
+# Check if Action1 contains restart-related keywords (case-insensitive)
+if (-NOT[string]::IsNullOrEmpty($Action1) -and ($Action1 -match "(?i)restart|reboot|shutdown|herstart")) {
+    Write-Log -Message "Detected restart action in Action1 value: $Action1"
     $RestartProtocol = Register-RestartProtocol
     if ($RestartProtocol) {
         # Override Action1 with the registered protocol
